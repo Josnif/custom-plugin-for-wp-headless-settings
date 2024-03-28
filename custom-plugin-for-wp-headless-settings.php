@@ -14,15 +14,15 @@
 function remove_menus(){
 
     // remove_menu_page( 'index.php' );                  //Dashboard  
+    remove_menu_page( 'edit.php?post_type=page' );    //Pages  
     remove_menu_page( 'edit.php' );                   //Posts  
-//     remove_menu_page( 'edit.php?post_type=page' );    //Pages  
     remove_menu_page( 'edit-comments.php' );          //Comments  
     remove_menu_page( 'themes.php' );                 //Appearance  
+    remove_menu_page( 'wpcf7' );        //contact form
     // remove_menu_page( 'plugins.php' );                //Plugins  
     // remove_menu_page( 'users.php' );                  //Users  
     // remove_menu_page( 'tools.php' );                  //Tools  
     // remove_menu_page( 'options-general.php' );        //Settings
-    // remove_menu_page( 'wpcf7' );        //contact form
   
 }
 
@@ -34,26 +34,26 @@ add_filter( 'graphql_jwt_auth_secret_key', function() {
 
 
 // Extend GraphQL schema to include ACF fields
-/*
-add_filter('register_graphql_field_types', function ($fields) {
-    $fields['ServiceOrderFields'] = [
-        'type' => 'String',
-        'description' => __('Custom fields for Service Order'),
-        'resolve' => function ($source, $args, $context, $info) {
-            return 'Custom fields for Service Order';
-        },
-    ];
 
-    return $fields;
-});
-*/
+// add_filter('register_graphql_field_types', function ($fields) {
+//     $fields['OrderData'] = [
+//         'type' => 'String',
+//         'description' => __('Custom fields for Service Order'),
+//         'resolve' => function ($source, $args, $context, $info) {
+//             return 'Custom fields for Service Order';
+//         },
+//     ];
+
+//     return $fields;
+// });
+
 
 // Define mutation for creating service order
 function createServiceOrderMutation() {
-    register_graphql_mutation('createServiceOrder', [
+    register_graphql_mutation('createServiceOrderData', [
         'inputFields' => [
             'service_id' => [
-                'type' => 'ID!',
+                'type' => 'ID',
                 'description' => __('Service ID'),
             ],
             'service_name' => [
@@ -61,15 +61,15 @@ function createServiceOrderMutation() {
                 'description' => __('Service Name'),
             ],
             'plan' => [
-                'type' => 'String!',
+                'type' => 'String',
                 'description' => __('Plan'),
             ],
             'count' => [
-                'type' => 'Int!',
+                'type' => 'Int',
                 'description' => __('Plan Count'),
             ],
             'plan_amount' => [
-                'type' => 'Float!',
+                'type' => 'Float',
                 'description' => __('Plan Amount'),
             ],
             'plan_discount' => [
@@ -77,11 +77,11 @@ function createServiceOrderMutation() {
                 'description' => __('Plan Discount'),
             ],
             'total_amount' => [
-                'type' => 'Float!',
+                'type' => 'Float',
                 'description' => __('Total Amount'),
             ],
             'payment_method' => [
-                'type' => 'String!',
+                'type' => 'String',
                 'description' => __('Payment Method'),
             ],
             'payment_id' => [
@@ -96,6 +96,14 @@ function createServiceOrderMutation() {
                 'type' => 'String',
                 'description' => __('User ID'),
             ],
+			'service_posts' => [
+                'type' => ['list_of' => 'ServicePostInput'],
+                'description' => __('Service Posts'),
+            ],
+            'status' => [
+                'type' => 'String',
+                'description' => __('Status'),
+            ],
             // Add more input fields as needed
         ],
         'outputFields' => [
@@ -109,6 +117,8 @@ function createServiceOrderMutation() {
             ],
         ],
         'mutateAndGetPayload' => function ($input, $context, $info) {
+            // Validate input fields here
+            
             // Create service order post
             $post_id = wp_insert_post([
                 'post_type' => 'service-order',
@@ -117,12 +127,11 @@ function createServiceOrderMutation() {
             ]);
 
             // Set ACF field values
-            if (isset($input['service_id'])) {
+            if (!empty($input['service_id'])) {
                 // Serialize the relationship field value before saving
                 $serialized_service_id = serialize([$input['service_id']]);
                 update_field('service_id', $serialized_service_id, $post_id);
             }
-            update_field('service_id', $input['service_id'], $post_id);
             update_field('service_name', $input['service_name'], $post_id);
             update_field('plan', $input['plan'], $post_id);
             update_field('count', $input['count'], $post_id);
@@ -132,20 +141,43 @@ function createServiceOrderMutation() {
             update_field('payment_method', $input['payment_method'], $post_id);
             update_field('payment_id', $input['payment_id'], $post_id);
             
-            if (isset($input['account_id'])) {
+            if (!empty($input['account_id'])) {
                 // Serialize the relationship field value before saving
                 $serialized_account_id = serialize([$input['account_id']]);
                 update_field('account_id', $serialized_account_id, $post_id);
             }
 
             update_field('user_id', $input['user_id'], $post_id);
-            // Update more ACF fields as needed
+            update_field('status', $input['status'], $post_id);
+            
+            // Update repeater field 'service_posts'
+            if (!empty($input['service_posts'])) {
+                $service_posts = [];
+                foreach ($input['service_posts'] as $service_post) {
+                    $service_posts[] = [
+                        'post' => $service_post['post']
+                    ];
+                }
+                update_field('service_posts', $service_posts, $post_id);
+            }
+
 
             // Return the created service order
             return [
                 'serviceOrder' => get_post($post_id),
             ];
         },
+    ]);
+	
+	// Define input type for service post
+    register_graphql_input_type('ServicePostInput', [
+        'fields' => [
+            'post' => [
+                'type' => 'String',
+                'description' => __('Post Title|Link'),
+            ],
+        ],
+        'description' => 'Input type for service post',
     ]);
 }
 add_action('graphql_register_types', 'createServiceOrderMutation');
