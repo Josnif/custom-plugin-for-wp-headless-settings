@@ -93,14 +93,14 @@ function createServiceOrderMutation() {
                 'description' => __('Account ID'),
             ],
             'user_id' => [
-                'type' => 'String',
+                'type' => 'ID',
                 'description' => __('User ID'),
             ],
 			'service_posts' => [
                 'type' => ['list_of' => 'ServicePostInput'],
                 'description' => __('Service Posts'),
             ],
-            'status' => [
+			'status' => [
                 'type' => 'String',
                 'description' => __('Status'),
             ],
@@ -112,7 +112,21 @@ function createServiceOrderMutation() {
                 'description' => __('The newly created service order.'),
                 'resolve' => function ($source, $args, $context, $info) {
                     // Retrieve the newly created service order
-                    return $source->serviceOrder;
+                    
+					$post = $source['serviceOrder'];
+					// Check if $post is valid
+					if ($post instanceof WP_Post) {
+						$databaseId = $post->ID;
+
+						$serviceOrder = [
+							'databaseId' => $databaseId,
+							'id' => $databaseId,
+						];
+
+					} else {
+						$serviceOrder = null;
+					}
+					return $serviceOrder;
                 },
             ],
         ],
@@ -122,14 +136,14 @@ function createServiceOrderMutation() {
             // Create service order post
             $post_id = wp_insert_post([
                 'post_type' => 'service-order',
-                'post_title' => $input['service_name'], // You can customize the title
-                // Add more post fields as needed
+                'post_title' => $input['service_name'],
+                'post_status' => 'publish'
             ]);
-
+			
             // Set ACF field values
             if (!empty($input['service_id'])) {
-                // Serialize the relationship field value before saving
-                $serialized_service_id = serialize([$input['service_id']]);
+				// $serialized_service_id = serialize([$input['service_id']]);
+                $serialized_service_id = $input['service_id'];
                 update_field('service_id', $serialized_service_id, $post_id);
             }
             update_field('service_name', $input['service_name'], $post_id);
@@ -143,6 +157,7 @@ function createServiceOrderMutation() {
             
             if (!empty($input['account_id'])) {
                 // Serialize the relationship field value before saving
+				// $serialized_account_id = serialize([$input['account_id']]);
                 $serialized_account_id = serialize([$input['account_id']]);
                 update_field('account_id', $serialized_account_id, $post_id);
             }
@@ -181,3 +196,96 @@ function createServiceOrderMutation() {
     ]);
 }
 add_action('graphql_register_types', 'createServiceOrderMutation');
+
+// add_action( 'graphql_register_types', function() {
+//     register_graphql_field( 'UserAccount', 'username', [
+//         'type' => 'String',
+//         'description' => 'The username of the social media account.',
+//     ] );
+
+//     register_graphql_field( 'UserAccount', 'socialMedia', [
+//         'type' => 'String',
+//         'description' => 'The social media handle of the account.',
+//     ] );
+// });
+
+
+// Define a custom mutation for creating a social media account
+add_action( 'graphql_register_types', function() {
+    register_graphql_mutation( 'createSocialAccount', [
+        'inputFields' => [
+			'user' => [
+                'type' => 'ID',
+                'description' => 'The user of the social media account.',
+            ],
+            'username' => [
+                'type' => 'String',
+                'description' => 'The username of the social media account.',
+            ],
+            'socialMedia' => [
+                'type' => 'String',
+                'description' => 'The social media handle of the account.',
+            ],
+        ],
+        'outputFields' => [
+            'userAccount' => [
+                'type' => 'UserAccount',
+                'description' => 'The newly created social media account.',
+				'resolve' => function ($source, $args, $context, $info) {
+                    // Retrieve the newly created service order
+                    $post = $source['UserAccount'];
+					// Check if $post is valid
+					if ($post instanceof WP_Post) {
+						$databaseId = $post->ID;
+
+						$userAccountData = [
+							'databaseId' => $databaseId,
+							'id' => $databaseId,
+							'socialAccount' => (object)[
+								'socialMedia' => $post->post_content ?? '',
+								'username' => $post->post_title ?? ''
+							]
+						];
+
+					} else {
+						$userAccountData = null;
+					}
+					return $userAccountData;
+					
+                },
+            ],
+        ],
+        'mutateAndGetPayload' => function( $input, $context, $info ) {
+            // Create the social media account using ACF functions
+            $post_id = wp_insert_post([
+                'post_type' => 'social-media-account',
+                'post_title' => $input['username'],
+                'post_content' => $input['socialMedia'],
+				'post_status' => 'publish'
+            ]);
+			
+			update_field('user', $input['user'], $post_id);
+			update_field('username', $input['username'], $post_id);
+			update_field('social_media', $input['socialMedia'], $post_id);
+
+            // Return the created social media account
+            return [
+                'UserAccount' => get_post( $post_id ),
+            ];
+        },
+    ] );
+});
+
+
+function log_it( $message ) {
+   if( WP_DEBUG === true ){
+     if( is_array( $message ) || is_object( $message ) ){
+       //error_log will be located according to server configuration
+       //you can specify a custom location if needed like this
+       //error_log( $var, 0, "full-path-to/error_log.txt")
+       error_log( print_r( $message, true ) );
+     } else {
+       error_log( $message );
+     }
+   }
+}
