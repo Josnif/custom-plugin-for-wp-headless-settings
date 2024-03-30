@@ -158,7 +158,7 @@ function createServiceOrderMutation() {
             if (!empty($input['account_id'])) {
                 // Serialize the relationship field value before saving
 				// $serialized_account_id = serialize([$input['account_id']]);
-                $serialized_account_id = serialize([$input['account_id']]);
+                $serialized_account_id = $input['account_id'];
                 update_field('account_id', $serialized_account_id, $post_id);
             }
 
