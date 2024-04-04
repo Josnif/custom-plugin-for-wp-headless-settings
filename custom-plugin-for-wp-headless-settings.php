@@ -237,8 +237,8 @@ add_action( 'graphql_register_types', function() {
 			
 			update_field('user', $input['user'], $post_id);
 			update_field('username', $input['username'], $post_id);
-			update_field('social_media', $input['socialMedia'], $post_id);
-
+			update_field('socialMedia', $input['socialMedia'], $post_id);
+			
             // Return the created social media account
             return [
                 'UserAccount' => get_post( $post_id ),
@@ -572,3 +572,87 @@ function register_store_settings_graphql_type() {
     );
 }
 add_action('graphql_register_types', 'register_store_settings_graphql_type');
+
+
+function duplicateServiceOrderMutation() {
+    register_graphql_mutation('duplicateServiceOrder', [
+        'inputFields' => [
+            'id' => [
+                'type' => 'ID',
+                'description' => __('ID of the service order to duplicate'),
+            ],
+        ],
+        'outputFields' => [
+            'duplicatedServiceOrder' => [
+                'type' => 'ServiceOrder',
+                'description' => __('The duplicated service order.'),
+                'resolve' => function ($source, $args, $context, $info) {
+                    // Retrieve the duplicated service order
+                    $post = $source['duplicatedServiceOrder'];
+					if ($post instanceof WP_Post) {
+						$databaseId = $post->ID;
+
+						$serviceOrder = [
+							'databaseId' => $databaseId,
+							'id' => $databaseId,
+						];
+
+					} else {
+						$serviceOrder = null;
+					}
+					return $serviceOrder;
+                },
+            ],
+        ],
+        'mutateAndGetPayload' => function ($input, $context, $info) {
+            $original_service_order = get_post($input['id']);
+
+            if (!$original_service_order) {
+                return new WP_Error('invalid_service_order', __('Invalid service order ID.'));
+            }
+
+            $service_order_data = [];
+			$service_order_data['service_id'] = get_field('service_id', $original_service_order);
+            $service_order_data['service_name'] = get_field('service_name', $original_service_order);
+            $service_order_data['plan'] = get_field('plan', $original_service_order);
+            $service_order_data['count'] = get_field('count', $original_service_order);
+            $service_order_data['plan_amount'] = get_field('plan_amount', $original_service_order);
+            $service_order_data['plan_discount'] = get_field('plan_discount', $original_service_order);
+            $service_order_data['total_amount'] = get_field('total_amount', $original_service_order);
+            $service_order_data['payment_method'] = get_field('payment_method', $original_service_order);
+            $service_order_data['payment_id'] = get_field('payment_id', $original_service_order);
+            $service_order_data['account_id'] = get_field('account_id', $original_service_order);
+            $service_order_data['user_id'] = get_field('user_id', $original_service_order);
+            $service_order_data['status'] = get_field('status', $original_service_order);
+            $service_posts = get_field('service_posts', $original_service_order);
+			
+            $post_id = wp_insert_post([
+                'post_type' => 'service-order',
+                'post_title' => $service_order_data['service_name'],
+                'post_status' => 'publish',
+            ]);
+
+            update_field('service_id', $service_order_data['service_id'], $post_id);
+            update_field('service_name', $service_order_data['service_name'], $post_id);
+            update_field('plan', $service_order_data['plan'], $post_id);
+            update_field('count', $service_order_data['count'], $post_id);
+            update_field('plan_amount', $service_order_data['plan_amount'], $post_id);
+            update_field('plan_discount', $service_order_data['plan_discount'], $post_id);
+            update_field('total_amount', $service_order_data['total_amount'], $post_id);
+            update_field('payment_method', $service_order_data['payment_method'], $post_id);
+            update_field('payment_id', $service_order_data['payment_id'], $post_id);
+            update_field('account_id', $service_order_data['account_id'], $post_id);
+            update_field('user_id', $service_order_data['user_id'], $post_id);
+            update_field('status', $service_order_data['status'], $post_id);
+           	
+			if (!empty($service_posts)) {
+				update_field('service_posts', $service_posts, $post_id);
+			}
+
+            return [
+                'duplicatedServiceOrder' => get_post($post_id),
+            ];
+        },
+    ]);
+}
+add_action('graphql_register_types', 'duplicateServiceOrderMutation');
