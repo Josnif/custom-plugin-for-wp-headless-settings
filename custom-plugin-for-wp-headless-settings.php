@@ -13,10 +13,10 @@
 function remove_menus(){
 
     // remove_menu_page( 'index.php' );                  //Dashboard  
-    remove_menu_page( 'edit.php?post_type=page' );    //Pages  
+	// remove_menu_page( 'edit.php?post_type=page' );    //Pages  
     remove_menu_page( 'edit.php' );                   //Posts  
     remove_menu_page( 'edit-comments.php' );          //Comments  
-//     remove_menu_page( 'themes.php' );                 //Appearance  
+    remove_menu_page( 'themes.php' );                 //Appearance  
     remove_menu_page( 'wpcf7' );        //contact form
     // remove_menu_page( 'plugins.php' );                //Plugins  
     // remove_menu_page( 'users.php' );                  //Users  
@@ -239,6 +239,10 @@ add_action( 'graphql_register_types', function() {
 			update_field('username', $input['username'], $post_id);
 			update_field('socialMedia', $input['socialMedia'], $post_id);
 			
+// 			update_field('social_media', 48, $post_id);
+			
+			log_it($input['socialMedia']);
+
             // Return the created social media account
             return [
                 'UserAccount' => get_post( $post_id ),
@@ -554,7 +558,7 @@ function register_store_settings_graphql_type() {
                     }
                 ],
                 'storeCurrencyDecimals' => [
-                    'type' => 'Int',
+                    'type' => 'String',
                     'description' => 'The number of decimals for currency amounts',
                     'resolve' => function ($settings) {
                         return $settings['store_currency_decimals'] ?? null;
@@ -656,3 +660,110 @@ function duplicateServiceOrderMutation() {
     ]);
 }
 add_action('graphql_register_types', 'duplicateServiceOrderMutation');
+
+// service-order overview pages
+add_filter( 'manage_service-order_posts_columns','add_service_order_custom_columns');
+function add_service_order_custom_columns( $columns ) {  
+	$new_columns = array();
+    $new_columns['order_id'] = "Order ID";
+    
+    $first_column = array_slice( $columns, 0, 1, true );
+    $remaining_columns = array_slice( $columns, 1, null, true );
+    $columns = $first_column + $new_columns + $remaining_columns;
+    
+    $columns['social_account'] = "Social Account";
+	$columns['order_status'] = "Order Status";
+	unset($columns['date']);
+    $columns['date'] = "Date";
+    return $columns;
+}
+
+add_action( 'manage_service-order_posts_custom_column', 'fill_service_order_posts_custom_column', 10, 2 );
+function fill_service_order_posts_custom_column( $column_id, $post_id ) {
+    switch( $column_id ) { 
+        case 'order_id':
+            echo '<strong>' . get_post_field('ID', $post_id) . '</strong>';
+            break;
+		case 'order_status': 
+			echo get_field('status', $post_id);
+			break;
+        case 'social_account':
+            $acct = get_field('account_id', $post_id);
+            if (is_array($acct)) {
+                echo get_field('username', $acct[0]);
+            } else {
+                echo get_field('username', $acct);
+            }
+
+            break;
+    }
+}
+add_filter( 'manage_edit-service-order_sortable_columns', 'sortable_service_order_posts_columns' );
+function sortable_service_order_posts_columns( $columns ) {
+    $columns['order_id'] = 'Order ID';
+    return $columns;
+}
+
+
+// Define a custom mutation for creating order invoice
+add_action( 'graphql_register_types', function() {
+    register_graphql_mutation( 'createServiceInvoice', [
+        'inputFields' => [
+			'order' => [
+                'type' => 'ID',
+                'description' => 'The related order.',
+            ],
+            'invoice_link' => [
+                'type' => 'String',
+                'description' => 'The invoice link.',
+            ],
+            'invoice_number' => [
+                'type' => 'String',
+                'description' => 'The invoice number.',
+            ],
+        ],
+        'outputFields' => [
+            'orderInvoice' => [
+                'type' => 'OrderInvoice',
+                'description' => 'The newly created order invoice.',
+				'resolve' => function ($source, $args, $context, $info) {
+                    // Retrieve the newly created service order
+                    $post = $source['OrderInvoice'];
+					// Check if $post is valid
+					if ($post instanceof WP_Post) {
+						$databaseId = $post->ID;
+
+						$orderInvoiceData = [
+							'databaseId' => $databaseId,
+							'id' => $databaseId,
+						];
+
+					} else {
+						$orderInvoiceData = null;
+					}
+					return $orderInvoiceData;
+					
+                },
+            ],
+        ],
+        'mutateAndGetPayload' => function( $input, $context, $info ) {
+            $post_id = wp_insert_post([
+                'post_type' => 'order-invoice',
+                'post_title' => $input['order'],
+                'post_content' => $input['invoice_link'],
+				'post_status' => 'publish'
+            ]);
+			
+			update_field('order', $input['order'], $post_id);
+			update_field('invoice_link', $input['invoice_link'], $post_id);
+			update_field('invoice_number', $input['invoice_number'], $post_id);
+			
+			// log_it($input['socialMedia']);
+
+            // Return the created order invoice
+            return [
+                'orderInvoice' => get_post( $post_id ),
+            ];
+        },
+    ] );
+});
