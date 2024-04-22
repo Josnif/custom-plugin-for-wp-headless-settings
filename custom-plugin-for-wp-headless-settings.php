@@ -724,11 +724,11 @@ add_action( 'graphql_register_types', function() {
         ],
         'outputFields' => [
             'orderInvoice' => [
-                'type' => 'OrderInvoice',
+                'type' => 'orderInvoice',
                 'description' => 'The newly created order invoice.',
 				'resolve' => function ($source, $args, $context, $info) {
                     // Retrieve the newly created service order
-                    $post = $source['OrderInvoice'];
+                    $post = $source['orderInvoice'];
 					// Check if $post is valid
 					if ($post instanceof WP_Post) {
 						$databaseId = $post->ID;
