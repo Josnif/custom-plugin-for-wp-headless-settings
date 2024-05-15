@@ -91,6 +91,10 @@ function createServiceOrderMutation() {
                 'type' => ['list_of' => 'ServicePostInput'],
                 'description' => __('Service Posts'),
             ],
+			'website_traffic' => [
+                'type' => ['list_of' => 'WebsiteTrafficInput'],
+                'description' => __('Site Traffic'),
+            ],
 			'status' => [
                 'type' => 'String',
                 'description' => __('Status'),
@@ -166,6 +170,18 @@ function createServiceOrderMutation() {
                 }
                 update_field('service_posts', $service_posts, $post_id);
             }
+			
+			// Update repeater field 'website_traffic'
+            if (!empty($input['website_traffic'])) {
+                $websites = [];
+                foreach ($input['website_traffic'] as $website) {
+                    $websites[] = [
+                        'traffic_url' 		=> $website['traffic_url'],
+						'traffic_location' 	=> $website['traffic_location']
+                    ];
+                }
+                update_field('website_traffic', $websites, $post_id);
+            }
 
 
             // Return the created service order
@@ -184,6 +200,21 @@ function createServiceOrderMutation() {
             ],
         ],
         'description' => 'Input type for service post',
+    ]);
+	
+	// Define input type for website traffic
+    register_graphql_input_type('WebsiteTrafficInput', [
+        'fields' => [
+            'traffic_url' => [
+                'type' => 'String',
+                'description' => __('Traffic URL'),
+            ],
+			'traffic_location' => [
+                'type' => 'String',
+                'description' => __('Traffic Location'),
+            ],
+        ],
+        'description' => 'Input type for website traffic',
     ]);
 }
 add_action('graphql_register_types', 'createServiceOrderMutation');
