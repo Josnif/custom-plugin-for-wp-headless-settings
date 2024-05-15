@@ -13,10 +13,10 @@
 function remove_menus(){
 
     // remove_menu_page( 'index.php' );                  //Dashboard  
-	// remove_menu_page( 'edit.php?post_type=page' );    //Pages  
+    // remove_menu_page( 'edit.php?post_type=page' );    //Pages  
     remove_menu_page( 'edit.php' );                   //Posts  
     remove_menu_page( 'edit-comments.php' );          //Comments  
-    remove_menu_page( 'themes.php' );                 //Appearance  
+	remove_menu_page( 'themes.php' );                 //Appearance  
     remove_menu_page( 'wpcf7' );        //contact form
     // remove_menu_page( 'plugins.php' );                //Plugins  
     // remove_menu_page( 'users.php' );                  //Users  
@@ -24,6 +24,14 @@ function remove_menus(){
     // remove_menu_page( 'options-general.php' );        //Settings
   
 }
+
+function custom_disable_new_user_notifications() {
+	//Remove original use created emails
+	remove_action( 'register_new_user', 'wp_send_new_user_notifications' );
+	//remove_action( 'edit_user_created_user', 'wp_send_new_user_notifications', 10, 2 );	
+}
+add_action( 'init', 'custom_disable_new_user_notifications' );
+
 
 add_action( 'admin_menu', 'remove_menus' );
 
@@ -704,7 +712,6 @@ function sortable_service_order_posts_columns( $columns ) {
     return $columns;
 }
 
-
 // Define a custom mutation for creating order invoice
 add_action( 'graphql_register_types', function() {
     register_graphql_mutation( 'createServiceInvoice', [
@@ -767,3 +774,4 @@ add_action( 'graphql_register_types', function() {
         },
     ] );
 });
+
