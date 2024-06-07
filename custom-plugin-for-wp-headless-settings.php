@@ -806,3 +806,64 @@ add_action( 'graphql_register_types', function() {
     ] );
 });
 
+function updateUserPasswordMutation() {
+    register_graphql_mutation('updateUserPassword', [
+        'inputFields' => [
+            'userId' => [
+                'type' => 'ID',
+                'description' => __('ID of the user whose password is to be updated', 'customwp'),
+            ],
+            'currentPassword' => [
+                'type' => 'String',
+                'description' => __('Current password of the user', 'customwp'),
+            ],
+            'newPassword' => [
+                'type' => 'String',
+                'description' => __('New password for the user', 'customwp'),
+            ],
+        ],
+        'outputFields' => [
+            'success' => [
+                'type' => 'Boolean',
+                'description' => __('Whether the password was successfully updated', 'customwp'),
+            ],
+            'message' => [
+                'type' => 'String',
+                'description' => __('Message regarding the update process', 'customwp'),
+            ],
+        ],
+        'mutateAndGetPayload' => function ($input, $context, $info) {
+            $user_id = $input['userId'];
+            $current_password = $input['currentPassword'];
+            $new_password = $input['newPassword'];
+
+            // Get the user object
+            $user = get_user_by('ID', $user_id);
+
+            if (!$user) {
+                return [
+                    'success' => false,
+                    'message' => __('Invalid user ID.', 'customwp'),
+                ];
+            }
+
+            // Check if the current password is correct
+            if (!wp_check_password($current_password, $user->user_pass, $user->ID)) {
+                return [
+                    'success' => false,
+                    'message' => __('Current password is incorrect.', 'customwp'),
+                ];
+            }
+
+            // Update the user's password
+            wp_set_password($new_password, $user->ID);
+
+            return [
+                'success' => true,
+                'message' => __('Password updated successfully.', 'customwp'),
+            ];
+        },
+    ]);
+}
+
+add_action('graphql_register_types', 'updateUserPasswordMutation');
