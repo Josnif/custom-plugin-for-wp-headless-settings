@@ -28,6 +28,10 @@ function createServiceOrderMutation() {
                 'type' => 'Float',
                 'description' => __('Plan Discount'),
             ],
+            'currency' => [
+                'type' => 'String',
+                'description' => __('Currency'),
+            ],
             'total_amount' => [
                 'type' => 'Float',
                 'description' => __('Total Amount'),
@@ -108,6 +112,7 @@ function createServiceOrderMutation() {
             update_field('plan_amount', $input['plan_amount'], $post_id);
             update_field('plan_discount', $input['plan_discount'], $post_id);
             update_field('total_amount', $input['total_amount'], $post_id);
+            update_field('currency', $input['currency'], $post_id);
             update_field('payment_method', $input['payment_method'], $post_id);
             update_field('payment_id', $input['payment_id'], $post_id);
             
@@ -297,6 +302,7 @@ function duplicateServiceOrderMutation() {
             $service_order_data['plan_amount'] = get_field('plan_amount', $original_service_order);
             $service_order_data['plan_discount'] = get_field('plan_discount', $original_service_order);
             $service_order_data['total_amount'] = get_field('total_amount', $original_service_order);
+            $service_order_data['currency'] = get_field('currency', $original_service_order);
             $service_order_data['payment_method'] = get_field('payment_method', $original_service_order);
             $service_order_data['payment_id'] = get_field('payment_id', $original_service_order);
             $service_order_data['account_id'] = get_field('account_id', $original_service_order);
@@ -317,6 +323,7 @@ function duplicateServiceOrderMutation() {
             update_field('plan_amount', $service_order_data['plan_amount'], $post_id);
             update_field('plan_discount', $service_order_data['plan_discount'], $post_id);
             update_field('total_amount', $service_order_data['total_amount'], $post_id);
+            update_field('currency', $service_order_data['currency'], $post_id);
             update_field('payment_method', $service_order_data['payment_method'], $post_id);
             update_field('payment_id', $service_order_data['payment_id'], $post_id);
             update_field('account_id', $service_order_data['account_id'], $post_id);
