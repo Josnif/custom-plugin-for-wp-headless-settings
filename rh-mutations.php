@@ -1,5 +1,7 @@
 <?php
 
+use CustomWP\CustomAuth;
+
 // Define mutation for creating service order
 function createServiceOrderMutation() {
     register_graphql_mutation('createServiceOrderData', [
@@ -467,3 +469,194 @@ function updateUserPasswordMutation() {
 }
 add_action('graphql_register_types', 'updateUserPasswordMutation');
 
+function resetUserPasswordMutation() {
+    register_graphql_mutation('resetPassword', [
+        'inputFields' => [
+            'email' => [
+                'type' => 'String',
+                'description' => __('Email of the user whose password is to be reset', 'customwp'),
+            ],
+            'password' => [
+                'type' => 'String',
+                'description' => __('New password for the user', 'customwp'),
+            ],
+        ],
+        'outputFields' => [
+            'success' => [
+                'type' => 'Boolean',
+                'description' => __('Whether the password was successfully reset', 'customwp'),
+            ],
+            'message' => [
+                'type' => 'String',
+                'description' => __('Message regarding the reset process', 'customwp'),
+            ],
+        ],
+        'mutateAndGetPayload' => function ($input, $context, $info) {
+            $email = $input['email'];
+            $new_password = $input['password'];
+
+            // Get the user object by email
+            $user = get_user_by('email', $email);
+
+            if (!$user) {
+                return [
+                    'success' => false,
+                    'message' => __('Invalid email address.', 'customwp'),
+                ];
+            }
+
+            // Update the user's password
+            wp_set_password($new_password, $user->ID);
+
+            return [
+                'success' => true,
+                'message' => __('Password reset successfully.', 'customwp'),
+            ];
+        },
+    ]);
+}
+add_action('graphql_register_types', 'resetUserPasswordMutation');
+
+function createUpdateServiceOrderMutation() {
+    register_graphql_mutation('updateServiceOrderData', [
+        'inputFields' => [
+            'order_id' => [
+                'type' => 'ID',
+                'description' => __('The order ID of the service order to update'),
+            ],
+            'payment_id' => [
+                'type' => 'String',
+                'description' => __('The payment ID'),
+            ],
+            'payment_method' => [
+                'type' => 'String',
+                'description' => __('The new payment method'),
+            ],
+            'status' => [
+                'type' => 'String',
+                'description' => __('The new status of the order'),
+            ],
+        ],
+        'outputFields' => [
+            'serviceOrder' => [
+                'type' => 'ServiceOrder',
+                'description' => __('The updated service order'),
+                'resolve' => function ($source) {
+                    // return $source['serviceOrder'] ? get_post($source['serviceOrder']->ID) : null;
+					$post = $source['serviceOrder'];
+					if ($post instanceof WP_Post) {
+						$databaseId = $post->ID;
+
+						$serviceOrder = [
+							'databaseId' => $databaseId,
+							'id' => $databaseId,
+						];
+					} else {
+						$serviceOrder = null;
+					}
+					return $serviceOrder;
+                },
+            ],
+        ],
+        'mutateAndGetPayload' => function ($input, $context, $info) {
+            // Validate input
+            if (empty($input['order_id'])) {
+                throw new \GraphQL\Error\UserError(__('Order ID is required.'));
+            }
+
+            // Fetch the order post by ID
+            $post = get_post($input['order_id']);
+            if (!$post || $post->post_type !== 'service-order') {
+                throw new \GraphQL\Error\UserError(__('Order not found.'));
+            }
+
+            // Validate payment ID if provided
+            // if (!empty($input['payment_id']) && get_field('payment_id', $post->ID) !== $input['payment_id']) {
+                // throw new \GraphQL\Error\UserError(__('Payment ID does not match.'));
+            // }
+			
+			if (isset($input['payment_id']) && !empty($input['payment_id'])) {
+                update_field('payment_id', $input['payment_id'], $post->ID);
+            }
+
+            if (isset($input['payment_method'])) {
+                update_field('payment_method', $input['payment_method'], $post->ID);
+            }
+
+            if (isset($input['status'])) {
+                update_field('status', $input['status'], $post->ID);
+            }
+
+            // Return the updated service order
+            return [
+                'serviceOrder' => $post,
+            ];
+        },
+    ]);
+}
+add_action('graphql_register_types', 'createUpdateServiceOrderMutation');
+
+add_action('graphql_register_types', function() {
+    register_graphql_mutation('loginWithoutPassword', [
+        'inputFields' => [
+            'username' => [
+                'type' => 'String',
+                'description' => 'Username or email of the user',
+            ],
+        ],
+        'outputFields' => [
+            'authToken' => [
+                'type' => 'String',
+                'description' => 'JWT authentication token',
+            ],
+            'refreshToken' => [
+                'type' => 'String',
+                'description' => 'JWT refresh token',
+            ],
+            'user' => [
+                'type' => 'User',
+                'description' => 'Authenticated user details',
+            ],
+            'id' => [
+                'type' => 'Int',
+                'description' => 'User ID',
+            ],
+        ],
+        'mutateAndGetPayload' => function($input) {
+            $username = sanitize_text_field($input['username']);
+
+            // Get user by username or email
+            $user = get_user_by('login', $username);
+            if (!$user) {
+                $user = get_user_by('email', $username);
+            }
+
+            if (!$user) {
+                return new WP_Error('invalid_user', __('User not found', 'wp-graphql-jwt-authentication'));
+            }
+
+            // Set the current user
+            wp_set_current_user($user->ID);
+
+            // Check if JWT Auth class exists
+            if (!class_exists('WPGraphQL\JWT_Authentication\Auth')) {
+                return new WP_Error('jwt_auth_error', __('JWT Authentication class not found', 'wp-graphql-jwt-authentication'));
+            }
+
+            /// Generate JWT token using the new class
+            $authToken = CustomAuth::generateToken($user);
+            $refreshToken = CustomAuth::generateRefreshToken($user);
+
+            if (is_wp_error($authToken)) {
+                return new WP_Error('jwt_auth_error', __('Failed to generate token', 'customwp'));
+            }
+
+            return [
+                'authToken' => $authToken,
+                'refreshToken' => $refreshToken,
+                'user' => new WPGraphQL\Model\User($user),
+                'id' => $user->ID,
+            ];
+        }
+    ]);
+});

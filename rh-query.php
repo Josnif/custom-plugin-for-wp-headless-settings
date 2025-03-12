@@ -55,3 +55,35 @@ add_action('graphql_register_types', function () {
         'resolve' => 'getServiceOrders',
     ]);
 });
+
+add_action('graphql_register_types', function () {
+    register_graphql_field('RootQuery', 'userExists', [
+        'type' => 'Boolean',
+        'args' => [
+            'username' => [
+                'type' => 'String',
+                'description' => __('The username to check', 'customwp'),
+            ],
+            'email' => [
+                'type' => 'String',
+                'description' => __('The email to check', 'customwp'),
+            ],
+        ],
+        'resolve' => function ($root, $args, $context, $info) {
+            if (!empty($args['username'])) {
+                if (username_exists($args['username'])) {
+                    return true;
+                }
+            }
+
+            if (!empty($args['email'])) {
+                if (email_exists($args['email'])) {
+                    return true;
+                }
+            }
+
+            return false;
+        },
+    ]);
+});
+

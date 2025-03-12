@@ -10,7 +10,9 @@ function add_service_order_custom_columns( $columns ) {
     $remaining_columns = array_slice( $columns, 2, null, true );
     $columns = $first_column + $new_columns + $remaining_columns;
     
-    $columns['social_account'] = "Social Account";
+    $columns['amount'] = "Amount";
+	$columns['user'] = "User Email";
+	$columns['social_account'] = "Social Account";
 	$columns['order_status'] = "Order Status";
 	unset($columns['date']);
     $columns['date'] = "Date";
@@ -23,8 +25,20 @@ function fill_service_order_posts_custom_column( $column_id, $post_id ) {
         case 'order_id':
             echo '<strong>' . get_post_field('ID', $post_id) . '</strong>';
             break;
+		case 'amount': 
+			$amount = get_field('total_amount', $post_id);
+			$currency = get_field('currency', $post_id);
+			echo $amount . " " . $currency;
+			break;
 		case 'order_status': 
-			echo get_field('status', $post_id);
+			// error_log($post_id);
+			echo get_field('status', $post_id, false);
+			break;
+		case 'user': 
+			$user_id = get_field('user_id', $post_id);
+			$user_info = get_userdata($user_id);
+			$user_email = $user_info->user_email;
+			echo $user_email ?? '-';
 			break;
         case 'social_account':
             $acct = get_field('account_id', $post_id);
@@ -59,3 +73,19 @@ function display_custom_social_service_columns($column_name, $post_id) {
     }
 }
 add_action('manage_social-service_posts_custom_column', 'display_custom_social_service_columns', 10, 2);
+
+function custom_posts_columns($columns) {
+    $first_column = array_slice($columns, 0, 2, true);
+	$remaining_columns = array_slice( $columns, 2, null, true );
+    $new_columns = array('language' => 'Language');
+    return $first_column + $new_columns + $remaining_columns;
+}
+add_filter('manage_post_posts_columns', 'custom_posts_columns');
+
+function display_custom_posts_columns($column_name, $post_id) {
+    if ($column_name === 'language') {
+        $language_value = get_field('language', $post_id);
+        echo strtoupper($language_value);
+    }
+}
+add_action('manage_post_posts_custom_column', 'display_custom_posts_columns', 10, 2);
