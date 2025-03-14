@@ -62,6 +62,10 @@ function createServiceOrderMutation() {
                 'type' => ['list_of' => 'WebsiteTrafficInput'],
                 'description' => __('Site Traffic'),
             ],
+			'upsells' => [
+                'type' => ['list_of' => 'UpSellInput'],
+                'description' => __('Upsells'),
+            ],
 			'status' => [
                 'type' => 'String',
                 'description' => __('Status'),
@@ -74,7 +78,6 @@ function createServiceOrderMutation() {
                 'description' => __('The newly created service order.'),
                 'resolve' => function ($source, $args, $context, $info) {
                     // Retrieve the newly created service order
-                    
 					$post = $source['serviceOrder'];
 					// Check if $post is valid
 					if ($post instanceof WP_Post) {
@@ -150,6 +153,20 @@ function createServiceOrderMutation() {
                 }
                 update_field('website_traffic', $websites, $post_id);
             }
+			
+			// Update repeater field 'upsells'
+			error_log( print_r( $input['upsells'], true ) );
+            if (!empty($input['upsells'])) {
+                $websites = [];
+                foreach ($input['upsells'] as $upsell) {
+                    $websites[] = [
+                        'name' 		=> $upsell['name'],
+						'count' 	=> (int)$upsell['count'],
+						'price' 	=> (float)$upsell['price'],
+                    ];
+                }
+                update_field('upsells', $websites, $post_id);
+            }
 
 
             // Return the created service order
@@ -183,6 +200,25 @@ function createServiceOrderMutation() {
             ],
         ],
         'description' => 'Input type for website traffic',
+    ]);
+	
+	// Define input type for upsells
+    register_graphql_input_type('UpSellInput', [
+        'fields' => [
+            'name' => [
+                'type' => 'String',
+                'description' => __('Upsell Type'),
+            ],
+			'count' => [
+                'type' => 'Int',
+                'description' => __('Count'),
+            ],
+			'price' => [
+                'type' => 'Float',
+                'description' => __('Price'),
+            ],
+        ],
+        'description' => 'Input type for Upsell',
     ]);
 }
 add_action('graphql_register_types', 'createServiceOrderMutation');
