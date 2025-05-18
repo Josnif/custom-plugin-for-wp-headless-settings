@@ -57,66 +57,104 @@ function sortable_service_order_posts_columns( $columns ) {
     return $columns;
 }
 
+add_action('restrict_manage_posts', function() {
+    global $typenow;
+
+    if ($typenow === 'service-order') {
+        $selected = $_GET['order_status'] ?? '';
+        $statuses = ['PENDING', 'PROCESSING', 'PAID', 'CANCELLED', 'FAILED'];
+
+        echo '<select name="order_status" style="margin-left: 10px;">';
+        echo '<option value="">' . __('All Order Statuses', 'textdomain') . '</option>';
+
+        foreach ($statuses as $status) {
+            printf(
+                '<option value="%s"%s>%s</option>',
+                esc_attr($status),
+                selected($selected, $status, false),
+                esc_html($status)
+            );
+        }
+
+        echo '</select>';
+    }
+});
+
+
 add_filter('pre_get_posts', function($query) {
     global $pagenow, $wpdb;
 
-    if (is_admin() && $pagenow === 'edit.php' && $query->is_search() && $query->query['post_type'] === 'service-order') {
-        $search_term = trim($query->get('s'));
+    if (is_admin() && $pagenow === 'edit.php' && $query->query['post_type'] === 'service-order') {
+        $meta_query = ['relation' => 'AND'];
 
-        // Initialize meta query
-        $meta_query = [
-            'relation' => 'OR',
-            [
-                'key'     => 'total_amount',
-                'value'   => $search_term,
-                'compare' => 'LIKE'
-            ],
-            [
-                'key'     => 'currency',
-                'value'   => $search_term,
-                'compare' => 'LIKE'
-            ],
-            [
-                'key'     => 'status',
-                'value'   => $search_term,
-                'compare' => 'LIKE'
-            ],
-        ];
-
-        // Search by User Email
-        $user = get_user_by('email', $search_term);
-        if ($user) {
+        // Add status filter if set
+        if (!empty($_GET['order_status'])) {
             $meta_query[] = [
-                'key'     => 'user_id',
-                'value'   => $user->ID,
+                'key'     => 'status',
+                'value'   => sanitize_text_field($_GET['order_status']),
                 'compare' => '='
             ];
         }
 
-        // Search by Order ID (Post ID)
-        if (is_numeric($search_term)) {
-            $query->set('post__in', [(int) $search_term]);
-        }
+        // Add search logic if it's a search
+        if ($query->is_search()) {
+            $search_term = trim($query->get('s'));
 
-        // Search for Social Account Username (Indirect Relationship)
-        $account_ids = $wpdb->get_col($wpdb->prepare("
-            SELECT post_id FROM {$wpdb->postmeta} 
-            WHERE meta_key = 'username' 
-            AND meta_value LIKE %s", '%' . $wpdb->esc_like($search_term) . '%'
-        ));
-
-        if (!empty($account_ids)) {
-            $meta_query[] = [
-                'key'     => 'account_id',
-                'value'   => $account_ids,
-                'compare' => 'IN'
+            $search_meta_query = [
+                'relation' => 'OR',
+                [
+                    'key'     => 'total_amount',
+                    'value'   => $search_term,
+                    'compare' => 'LIKE'
+                ],
+                [
+                    'key'     => 'currency',
+                    'value'   => $search_term,
+                    'compare' => 'LIKE'
+                ],
+                [
+                    'key'     => 'status',
+                    'value'   => $search_term,
+                    'compare' => 'LIKE'
+                ],
             ];
+
+            // Search by User Email
+            $user = get_user_by('email', $search_term);
+            if ($user) {
+                $search_meta_query[] = [
+                    'key'     => 'user_id',
+                    'value'   => $user->ID,
+                    'compare' => '='
+                ];
+            }
+
+            if (is_numeric($search_term)) {
+                $query->set('post__in', [(int) $search_term]);
+            }
+
+            // Search for Social Account Username (Indirect Relationship)
+            $account_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT post_id FROM {$wpdb->postmeta} 
+                WHERE meta_key = 'username' 
+                AND meta_value LIKE %s", '%' . $wpdb->esc_like($search_term) . '%'
+            ));
+
+            if (!empty($account_ids)) {
+                $search_meta_query[] = [
+                    'key'     => 'account_id',
+                    'value'   => $account_ids,
+                    'compare' => 'IN'
+                ];
+            }
+
+            // Only override search when a meta_query is needed
+            $meta_query[] = $search_meta_query;
+            $query->set('s', '');  // Disable default title search to avoid conflicts
         }
 
-        // Only override search when a meta_query is needed
-        if (!empty($meta_query)) {
+        if (count($meta_query) > 1) {
             $query->set('meta_query', $meta_query);
-            $query->set('s', ''); // Disable default title search to avoid conflicts
         }
     }
 });
