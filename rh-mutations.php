@@ -66,6 +66,10 @@ function createServiceOrderMutation() {
                 'type' => ['list_of' => 'UpSellInput'],
                 'description' => __('Upsells'),
             ],
+			'addons' => [
+                'type' => ['list_of' => 'AddonInput'],
+                'description' => __('Addons'),
+            ],
 			'status' => [
                 'type' => 'String',
                 'description' => __('Status'),
@@ -167,6 +171,19 @@ function createServiceOrderMutation() {
                 }
                 update_field('upsells', $websites, $post_id);
             }
+			
+			// Update repeater field 'addons'
+			error_log( print_r( $input['addons'], true ) );
+            if (!empty($input['addons'])) {
+                $websites = [];
+                foreach ($input['addons'] as $addon) {
+                    $websites[] = [
+                        'name' 		=> $addon['name'],
+						'price' 	=> (float)$addon['price'],
+                    ];
+                }
+                update_field('addons', $websites, $post_id);
+            }
 
 
             // Return the created service order
@@ -219,6 +236,21 @@ function createServiceOrderMutation() {
             ],
         ],
         'description' => 'Input type for Upsell',
+    ]);
+	
+	// Define input type for addons
+    register_graphql_input_type('AddonInput', [
+        'fields' => [
+            'name' => [
+                'type' => 'String',
+                'description' => __('Addon Name'),
+            ],
+			'price' => [
+                'type' => 'Float',
+                'description' => __('Price'),
+            ],
+        ],
+        'description' => 'Input type for Addons',
     ]);
 }
 add_action('graphql_register_types', 'createServiceOrderMutation');

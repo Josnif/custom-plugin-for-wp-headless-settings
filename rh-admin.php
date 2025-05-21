@@ -57,7 +57,7 @@ function sortable_service_order_posts_columns( $columns ) {
     return $columns;
 }
 
-add_action('restrict_manage_posts', function() {
+add_action('restrict_manage_posts', function($post_type) {
     global $typenow;
 
     if ($typenow === 'service-order') {
@@ -78,16 +78,52 @@ add_action('restrict_manage_posts', function() {
 
         echo '</select>';
     }
+	
+	 // Only show filter for post types that support 'language' field
+    if (!post_type_supports($post_type, 'custom-fields')) return;
+    if (!in_array($post_type, ['post', 'social-service'])) return;
+
+	// Language Filter
+	$selected_lang = $_GET['language'] ?? '';
+	$languages = ['ro', 'en', 'hu', 'pl', 'es', 'it', 'cz'];
+
+	echo '<select name="language" style="margin-left: 10px;">';
+	echo '<option value="">' . __('All Languages', 'textdomain') . '</option>';
+	foreach ($languages as $lang) {
+		printf(
+			'<option value="%s"%s>%s</option>',
+			esc_attr($lang),
+			selected($selected_lang, $lang, false),
+			strtoupper($lang)
+		);
+	}
+	echo '</select>';
 });
 
 
 add_filter('pre_get_posts', function($query) {
     global $pagenow, $wpdb;
 
-    if (is_admin() && $pagenow === 'edit.php' && $query->query['post_type'] === 'service-order') {
-        $meta_query = ['relation' => 'AND'];
+    if (!is_admin() || $pagenow !== 'edit.php') {
+        return;
+    }
 
-        // Add status filter if set
+     $post_type = $query->get('post_type') ?? 'post'; // default to 'post' if not explicitly set
+    $meta_query = ['relation' => 'AND'];
+
+    // Language filter (only apply to post and social-service)
+    if (in_array($post_type, ['post', 'social-service']) && !empty($_GET['language'])) {
+        $meta_query[] = [
+            'key'     => 'language',
+            'value'   => sanitize_text_field($_GET['language']),
+            'compare' => '='
+        ];
+    }
+
+    // Service-order-specific filters
+    if (!empty($query->query['post_type']) && $query->query['post_type'] === 'service-order') {
+
+        // Order status filter
         if (!empty($_GET['order_status'])) {
             $meta_query[] = [
                 'key'     => 'status',
@@ -96,7 +132,7 @@ add_filter('pre_get_posts', function($query) {
             ];
         }
 
-        // Add search logic if it's a search
+        // Search logic
         if ($query->is_search()) {
             $search_term = trim($query->get('s'));
 
@@ -119,7 +155,7 @@ add_filter('pre_get_posts', function($query) {
                 ],
             ];
 
-            // Search by User Email
+            // Search by user email
             $user = get_user_by('email', $search_term);
             if ($user) {
                 $search_meta_query[] = [
@@ -129,14 +165,15 @@ add_filter('pre_get_posts', function($query) {
                 ];
             }
 
+            // Search by Post ID
             if (is_numeric($search_term)) {
                 $query->set('post__in', [(int) $search_term]);
             }
 
-            // Search for Social Account Username (Indirect Relationship)
+            // Search by social account username
             $account_ids = $wpdb->get_col($wpdb->prepare("
-                SELECT post_id FROM {$wpdb->postmeta} 
-                WHERE meta_key = 'username' 
+                SELECT post_id FROM {$wpdb->postmeta}
+                WHERE meta_key = 'username'
                 AND meta_value LIKE %s", '%' . $wpdb->esc_like($search_term) . '%'
             ));
 
@@ -148,18 +185,19 @@ add_filter('pre_get_posts', function($query) {
                 ];
             }
 
-            // Only override search when a meta_query is needed
+            // Add the OR search block to the AND meta_query
             $meta_query[] = $search_meta_query;
-            $query->set('s', '');  // Disable default title search to avoid conflicts
-        }
 
-        if (count($meta_query) > 1) {
-            $query->set('meta_query', $meta_query);
+            // Disable default search
+            $query->set('s', '');
         }
     }
+
+    // Only apply if there are meta conditions
+    if (count($meta_query) > 1) {
+        $query->set('meta_query', $meta_query);
+    }
 });
-
-
 
 // social_service overview pages
 function custom_social_service_columns($columns) {
